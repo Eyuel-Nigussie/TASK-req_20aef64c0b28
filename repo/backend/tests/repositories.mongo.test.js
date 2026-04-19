@@ -7,13 +7,18 @@ const { connect, makeMongoCollection } = require('../src/repositories/mongoAdapt
 let mongod;
 
 beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  await connect(mongod.getUri());
+  const uri = process.env.MONGO_URI;
+  if (uri) {
+    await connect(uri);
+  } else {
+    mongod = await MongoMemoryServer.create();
+    await connect(mongod.getUri());
+  }
 }, 30000);
 
 afterAll(async () => {
   await mongoose.disconnect();
-  await mongod.stop();
+  if (mongod) await mongod.stop();
 });
 
 afterEach(async () => {

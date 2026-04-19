@@ -4,6 +4,9 @@ const { resetDb, seedBaseline } = require('./helpers');
 const examItems = require('../src/services/examItems');
 const packages = require('../src/services/packages');
 const orders = require('../src/services/orders');
+const invoices = require('../src/services/invoices');
+const kpi = require('../src/services/kpi');
+const pricing = require('../src/services/pricing');
 const audit = require('../src/services/audit');
 const identity = require('../src/services/identity');
 const recommendations = require('../src/services/recommendations');
@@ -183,5 +186,150 @@ describe('exports service', () => {
     // Empty = header only
     const lines = csv.trim().split('\n');
     expect(lines.length).toBe(1);
+  });
+});
+
+// ─── Invoices service ─────────────────────────────────────────────────────────
+
+describe('invoices service', () => {
+  beforeEach(resetDb);
+
+  test('get throws INVOICE_NOT_FOUND for missing invoice', async () => {
+    const { tenant } = await seedBaseline();
+    await expect(invoices.get(tenant.id, 'nonexistent'))
+      .rejects.toHaveProperty('code', 'INVOICE_NOT_FOUND');
+  });
+
+  test('list returns invoices scoped to tenant', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'IX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'IVP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 100, validityDays: 90 },
+      manager
+    );
+    const o = await orders.create(tenant.id, { packageId: pkg.id, patient: { name: 'A' } }, frontDesk);
+    await orders.confirm(tenant.id, o.id, [], { taxRate: 0 }, finance);
+    const result = await invoices.list(tenant.id);
+    expect(result.items.length).toBe(1);
+  });
+
+  test('refund transitions PAID invoice to REFUNDED', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'RX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'RFP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 100, validityDays: 90 },
+      manager
+    );
+    const o = await orders.create(tenant.id, { packageId: pkg.id, patient: { name: 'B' } }, frontDesk);
+    await orders.confirm(tenant.id, o.id, [], { taxRate: 0 }, finance);
+    await orders.markPaid(tenant.id, o.id, finance);
+    const inv = (await invoices.list(tenant.id)).items[0];
+    const refunded = await invoices.refund(tenant.id, inv.id, { reason: 'test refund reason' }, finance);
+    expect(refunded.status).toBe('REFUNDED');
+  });
+
+  test('refund rejects non-PAID invoice with BAD_STATUS', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'BX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'BSP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 100, validityDays: 90 },
+      manager
+    );
+    const o = await orders.create(tenant.id, { packageId: pkg.id, patient: { name: 'C' } }, frontDesk);
+    await orders.confirm(tenant.id, o.id, [], { taxRate: 0 }, finance);
+    const inv = (await invoices.list(tenant.id)).items[0];
+    await expect(invoices.refund(tenant.id, inv.id, { reason: 'bad status test' }, finance))
+      .rejects.toHaveProperty('code', 'BAD_STATUS');
+  });
+});
+
+// ─── KPI service ──────────────────────────────────────────────────────────────
+
+describe('kpi service', () => {
+  beforeEach(resetDb);
+
+  test('compute returns null for missing tenantId', async () => {
+    expect(await kpi.compute(null)).toBeNull();
+  });
+
+  test('compute returns zero counts for empty tenant', async () => {
+    const { tenant } = await seedBaseline();
+    const result = await kpi.compute(tenant.id);
+    expect(result.orders).toBe(0);
+    expect(result.paid).toBe(0);
+    expect(result.gmv).toBe(0);
+  });
+
+  test('compute counts paid orders and calculates GMV and AOV', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'KX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'KPP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 100, validityDays: 90 },
+      manager
+    );
+    const o1 = await orders.create(tenant.id, { packageId: pkg.id, patient: { id: 'p1', name: 'A' } }, frontDesk);
+    const o2 = await orders.create(tenant.id, { packageId: pkg.id, patient: { id: 'p2', name: 'B' } }, frontDesk);
+    await orders.confirm(tenant.id, o1.id, [], { taxRate: 0 }, finance);
+    await orders.markPaid(tenant.id, o1.id, finance);
+    await orders.confirm(tenant.id, o2.id, [], { taxRate: 0 }, finance);
+    await orders.markPaid(tenant.id, o2.id, finance);
+    const result = await kpi.compute(tenant.id);
+    expect(result.orders).toBe(2);
+    expect(result.paid).toBe(2);
+    expect(result.gmv).toBe(200);
+    expect(result.aov).toBe(100);
+  });
+});
+
+// ─── Pricing service ──────────────────────────────────────────────────────────
+
+describe('pricing service', () => {
+  beforeEach(resetDb);
+
+  test('create validates required fields', async () => {
+    await expect(pricing.create(null, { name: 'P', billingType: 'AMOUNT', unitPrice: 10, effectiveFrom: '2024-01-01' }))
+      .rejects.toHaveProperty('code', 'VALIDATION');
+    await expect(pricing.create('t1', { billingType: 'AMOUNT', unitPrice: 10, effectiveFrom: '2024-01-01' }))
+      .rejects.toHaveProperty('code', 'VALIDATION');
+    await expect(pricing.create('t1', { name: 'P', billingType: 'INVALID', unitPrice: 10, effectiveFrom: '2024-01-01' }))
+      .rejects.toHaveProperty('code', 'VALIDATION');
+  });
+
+  test('create inserts strategy and list returns it', async () => {
+    const { tenant, manager } = await seedBaseline();
+    const strat = await pricing.create(tenant.id, {
+      name: 'Basic', code: 'BASIC', billingType: 'AMOUNT', unitPrice: 50, effectiveFrom: '2024-01-01',
+    }, manager);
+    expect(strat.name).toBe('Basic');
+    expect(strat.billingType).toBe('AMOUNT');
+    const { items } = await pricing.list(tenant.id);
+    expect(items.length).toBe(1);
+    expect(items[0].code).toBe('BASIC');
+  });
+
+  test('findActive returns strategy valid at given date', async () => {
+    const { tenant, manager } = await seedBaseline();
+    await pricing.create(tenant.id, {
+      name: 'Promo', code: 'PROMO', billingType: 'AMOUNT', unitPrice: 80, effectiveFrom: '2024-01-01',
+    }, manager);
+    const found = await pricing.findActive(tenant.id, 'PROMO', new Date('2024-06-01'));
+    expect(found).not.toBeNull();
+    expect(found.code).toBe('PROMO');
+    const notFound = await pricing.findActive(tenant.id, 'PROMO', new Date('2023-12-31'));
+    expect(notFound).toBeNull();
+  });
+
+  test('duplicate code+version rejected with EXISTS', async () => {
+    const { tenant, manager } = await seedBaseline();
+    await pricing.create(tenant.id, {
+      name: 'P1', code: 'DUP', billingType: 'AMOUNT', unitPrice: 10, effectiveFrom: '2024-01-01',
+    }, manager);
+    await expect(pricing.create(tenant.id, {
+      name: 'P2', code: 'DUP', billingType: 'AMOUNT', unitPrice: 20, effectiveFrom: '2024-02-01',
+    }, manager)).rejects.toHaveProperty('code', 'EXISTS');
   });
 });

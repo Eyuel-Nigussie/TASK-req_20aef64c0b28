@@ -57,7 +57,15 @@ if [[ "$RUN_BACKEND" == "1" ]]; then
   echo "=========================================="
   echo " Running backend tests (Jest + supertest)"
   echo "=========================================="
-  if ! "${DC[@]}" run --rm --no-deps --entrypoint "" backend npm test; then
+  echo ">> Starting MongoDB for adapter integration tests..."
+  "${DC[@]}" up -d --wait db
+  backend_exit=0
+  "${DC[@]}" run --rm --no-deps \
+      -e MONGO_URI=mongodb://db:27017/clinicops_test \
+      --entrypoint "" backend npm test || backend_exit=$?
+  "${DC[@]}" stop db || true
+  "${DC[@]}" rm -f db || true
+  if [[ $backend_exit -ne 0 ]]; then
     FAILED=1
   fi
 fi

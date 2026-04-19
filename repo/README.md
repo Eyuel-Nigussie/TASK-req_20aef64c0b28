@@ -22,7 +22,7 @@ A full-stack internal operations platform for multi-location preventive care cli
 │   │   ├── routes/         # HTTP route handlers
 │   │   ├── services/       # Business logic
 │   │   └── utils/          # Encryption, CSV, geo, money, similarity
-│   └── tests/              # Jest + Supertest (195 tests, ~99% coverage)
+│   └── tests/              # Jest + Supertest (261 tests, ~99% coverage)
 ├── frontend/               # React + TypeScript SPA
 │   ├── src/
 │   │   ├── api/            # Typed API client + endpoint map
@@ -32,7 +32,7 @@ A full-stack internal operations platform for multi-location preventive care cli
 │   │   ├── store/          # localStorage session persistence
 │   │   ├── types/          # Shared TypeScript types
 │   │   └── utils/          # formatMoney, formatDate, password policy
-│   └── tests/              # Vitest + RTL (47 tests, ~94% coverage)
+│   └── tests/              # Vitest + RTL (67 tests, ~94% coverage)
 ├── docker-compose.yml      # Multi-container orchestration
 ├── Dockerfile              # Multi-stage build (backend + frontend targets)
 ├── start.sh                # Convenience wrapper around docker compose

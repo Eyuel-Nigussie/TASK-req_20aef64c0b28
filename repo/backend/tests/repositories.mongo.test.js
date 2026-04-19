@@ -7,7 +7,7 @@ const { connect, makeMongoCollection } = require('../src/repositories/mongoAdapt
 let mongod;
 
 beforeAll(async () => {
-  const uri = process.env.MONGO_URI;
+  const uri = process.env.MONGO_ADAPTER_TEST_URI;
   if (uri) {
     await connect(uri);
   } else {

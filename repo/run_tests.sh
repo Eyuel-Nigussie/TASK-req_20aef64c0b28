@@ -61,7 +61,7 @@ if [[ "$RUN_BACKEND" == "1" ]]; then
   "${DC[@]}" up -d --wait db
   backend_exit=0
   "${DC[@]}" run --rm --no-deps \
-      -e MONGO_URI=mongodb://db:27017/clinicops_test \
+      -e MONGO_ADAPTER_TEST_URI=mongodb://db:27017/clinicops_test \
       --entrypoint "" backend npm test || backend_exit=$?
   "${DC[@]}" stop db || true
   "${DC[@]}" rm -f db || true

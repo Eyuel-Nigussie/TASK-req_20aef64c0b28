@@ -305,12 +305,12 @@ describe('Exam item & Package creation', () => {
     });
     await waitFor(() => expect(screen.getByTestId('nav-examItems')).toBeInTheDocument());
     await act(async () => { fireEvent.click(screen.getByTestId('nav-examItems')); });
-    await act(async () => { fireEvent.click(screen.getByTestId('ei-save')); });
+    await act(async () => { fireEvent.click(screen.getByTestId('ei-submit')); });
     expect(screen.getByTestId('ei-error')).toHaveTextContent(/required/i);
     await act(async () => {
       fireEvent.change(screen.getByTestId('ei-name'), { target: { value: 'Glucose' } });
       fireEvent.change(screen.getByTestId('ei-code'), { target: { value: 'GLU' } });
-      fireEvent.click(screen.getByTestId('ei-save'));
+      fireEvent.click(screen.getByTestId('ei-submit'));
     });
   });
 

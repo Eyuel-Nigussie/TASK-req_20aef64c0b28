@@ -56,13 +56,14 @@ export function BillingPage() {
     <section aria-labelledby="billing-h">
       <h2 id="billing-h">Billing &amp; Pricing Strategies</h2>
 
+      {error && <p role="alert" style={{ color: 'red' }}>{error}</p>}
+
       {permit('package:manage') && (
         <details>
           <summary>Add Pricing Strategy</summary>
-          <form onSubmit={create}>
-            {error && <p role="alert" style={{ color: 'red' }}>{error}</p>}
-            <label>Name <input value={name} onChange={(e) => setName(e.target.value)} required /></label>
-            <label>Code <input value={code} onChange={(e) => setCode(e.target.value)} required /></label>
+          <form onSubmit={create} data-testid="billing-form">
+            <label>Name <input data-testid="billing-name" value={name} onChange={(e) => setName(e.target.value)} required /></label>
+            <label>Code <input data-testid="billing-code" value={code} onChange={(e) => setCode(e.target.value)} required /></label>
             <label>
               Billing Type
               <select value={billingType} onChange={(e) => setBillingType(e.target.value)}>
@@ -71,8 +72,8 @@ export function BillingPage() {
                 <option value="TIME">Time (per hour)</option>
               </select>
             </label>
-            <label>Unit Price <input type="number" min="0" step="0.01" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} required /></label>
-            <label>Effective From <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} required /></label>
+            <label>Unit Price <input data-testid="billing-price" type="number" min="0" step="0.01" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} required /></label>
+            <label>Effective From <input data-testid="billing-from" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} required /></label>
             <label>Effective To <input type="date" value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} /></label>
             <button type="submit" data-testid="billing-save">Save Strategy</button>
           </form>

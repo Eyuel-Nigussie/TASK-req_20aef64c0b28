@@ -403,16 +403,9 @@ describe('orders/billing/reconciliation/reports routes', () => {
     expect(files.body.items.length).toBe(1);
     const cases = await request(app).get('/api/reconciliation/cases').set(authHeader(finance));
     expect(cases.body.items.length).toBeGreaterThan(0);
-    const unmatched = cases.body.items.find((c) => c.status === 'UNMATCHED');
-    if (unmatched) {
-      const dispose = await request(app)
-        .post(`/api/reconciliation/cases/${unmatched.id}/dispose`)
-        .set(authHeader(finance))
-        .send({ disposition: 'WRITE_OFF', note: 'fee' });
-      expect(dispose.status).toBe(200);
-    }
     const exp = await request(app).get('/api/reconciliation/cases/export.csv').set(authHeader(finance));
     expect(exp.status).toBe(200);
+    expect(exp.text).toContain('id,fileId,transactionId');
   });
 
   test('reports: kpi, audit, verify (admin-only), anomalies', async () => {
@@ -600,5 +593,55 @@ describe('orders/billing/reconciliation/reports routes', () => {
       .send({ pageSize: 9999 });
     expect(res.status).toBe(200);
     expect(res.body.pageSize).toBeLessThanOrEqual(200);
+  });
+
+  test('reconciliation: WRITE_OFF dispose succeeds unconditionally on unmatched case', async () => {
+    const { finance } = await seedBaseline();
+    // Amount that won't match any invoice — guarantees UNMATCHED status
+    const content = 'amount,date,memo,counterparty\n0.03,2024-01-01,unknown-tx,XYZ';
+    const ingest = await request(app)
+      .post('/api/reconciliation/ingest')
+      .set(authHeader(finance))
+      .send({ filename: 'writeoff_test.csv', content });
+    expect(ingest.status).toBe(201);
+    const casesRes = await request(app).get('/api/reconciliation/cases').set(authHeader(finance));
+    const unmatched = casesRes.body.items.find((c) => c.status === 'UNMATCHED');
+    expect(unmatched).toBeDefined();
+    const dispose = await request(app)
+      .post(`/api/reconciliation/cases/${unmatched.id}/dispose`)
+      .set(authHeader(finance))
+      .send({ disposition: 'WRITE_OFF', note: 'unknown transaction' });
+    expect(dispose.status).toBe(200);
+    expect(dispose.body.disposition).toBe('WRITE_OFF');
+    expect(dispose.body.status).toBe('WRITTEN_OFF');
+  });
+
+  test('invoices export CSV contains header columns', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'CBC', code: 'CBC' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'PP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 50, validityDays: 90 },
+      manager
+    );
+    const o = await request(app).post('/api/orders').set(authHeader(frontDesk)).send({ packageId: pkg.id, patient: { name: 'A' } });
+    await request(app).post(`/api/orders/${o.body.id}/confirm`).set(authHeader(finance)).send({ taxRate: 0 });
+    const res = await request(app).get('/api/orders/invoices/export.csv').set(authHeader(finance));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('id,orderId,patientId');
+    expect(res.text).toContain('subtotal');
+    expect(res.text).toContain('total');
+  });
+
+  test('wechat exchange with enabled=true returns WECHAT_NOT_CONFIGURED (stub)', async () => {
+    const config = require('../src/config');
+    config.wechatOAuthEnabled = true;
+    try {
+      const res = await request(app).post('/api/auth/wechat/exchange').send({ code: 'testcode' });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('WECHAT_NOT_CONFIGURED');
+    } finally {
+      config.wechatOAuthEnabled = false;
+    }
   });
 });

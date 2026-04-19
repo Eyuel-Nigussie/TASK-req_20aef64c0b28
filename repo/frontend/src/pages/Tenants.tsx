@@ -46,7 +46,7 @@ export function TenantsPage() {
       <h2 id="tenants-h">Tenant Management</h2>
       {error && <p role="alert" style={{ color: 'red' }}>{error}</p>}
 
-      <form onSubmit={create}>
+      <form onSubmit={create} data-testid="tenant-form">
         <h3>Create Tenant</h3>
         <Input label="Name" value={name} onChange={setName} testId="tenant-name" required />
         <label>
@@ -58,7 +58,7 @@ export function TenantsPage() {
             data-testid="tenant-tz"
           />
         </label>
-        <button type="submit" data-testid="tenant-save">Create Tenant</button>
+        <button type="submit" data-testid="tenant-submit">Create Tenant</button>
       </form>
 
       <table data-testid="tenants-table">

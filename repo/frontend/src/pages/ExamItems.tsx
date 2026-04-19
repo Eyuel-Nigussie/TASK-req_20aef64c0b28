@@ -44,7 +44,7 @@ export function ExamItemsPage() {
     <section aria-labelledby="ei-h">
       <h2 id="ei-h">Exam Items</h2>
       {permit('examItem:manage') ? (
-        <form onSubmit={add}>
+        <form onSubmit={add} data-testid="ei-form">
           <Input label="Name" value={name} onChange={setName} testId="ei-name" required />
           <Input label="Code" value={code} onChange={setCode} testId="ei-code" required />
           <Input label="Unit" value={unit} onChange={setUnit} testId="ei-unit" />
@@ -59,8 +59,8 @@ export function ExamItemsPage() {
               <option>QUESTIONNAIRE</option>
             </select>
           </label>
-          <button type="submit" data-testid="ei-save">Save Exam Item</button>
-          {error ? <p className="error" data-testid="ei-error">{error}</p> : null}
+          <button type="submit" data-testid="ei-submit">Save Exam Item</button>
+          {error ? <p role="alert" className="error" data-testid="ei-error">{error}</p> : null}
         </form>
       ) : null}
       <ul data-testid="ei-list">
@@ -96,7 +96,7 @@ export function ExamItemsPage() {
               </>
             ) : (
               <>
-                <strong>{i.name}</strong> — {i.code} {i.unit ? `(${i.unit})` : ''} — {i.collectionMethod}
+                <strong>{i.name}</strong> — <span>{i.code}</span> {i.unit ? `(${i.unit})` : ''} — {i.collectionMethod}
                 {permit('examItem:manage') ? (
                   <button
                     data-testid={`ei-edit-${i.code}`}

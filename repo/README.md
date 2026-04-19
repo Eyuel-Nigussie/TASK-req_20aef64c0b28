@@ -68,6 +68,15 @@ docker-compose up --build -d
 * Backend API: `http://localhost:4000/api`
 * Health check: `http://localhost:4000/health`
 
+**Verify the system is running:**
+
+```bash
+curl http://localhost:4000/health
+# Expected: {"status":"ok"}
+```
+
+Then open `http://localhost:5173` in a browser and log in with any seeded credential (e.g., `manager` / `Manager!ClinicOps1`). The dashboard loads and the sidebar shows role-appropriate navigation.
+
 **Stop:**
 
 ```bash
@@ -82,16 +91,6 @@ chmod +x run_tests.sh
 ./run_tests.sh --backend    # backend only
 ./run_tests.sh --frontend   # frontend only
 ./run_tests.sh --no-build   # skip image rebuild
-```
-
-For local development without Docker:
-
-```bash
-# Backend
-cd backend && npm install && npm test
-
-# Frontend
-cd frontend && npm install && npm test
 ```
 
 Exit code `0` = all suites passed; non-zero = at least one failure.
@@ -123,6 +122,11 @@ The backend seeds one demo tenant and five accounts on first boot (skipped if an
 | `LOGIN_RATE_WINDOW_MS` | `900000` | Rate-limit window for login endpoint |
 | `LOGIN_RATE_MAX` | `10` | Max login attempts per window per IP |
 | `DEFAULT_TENANT_TIMEZONE` | `UTC` | Fallback timezone for new tenants |
+| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin for the API server |
+| `WECHAT_OAUTH_ENABLED` | `false` | Set to `true` to activate the WeChat OAuth adapter |
+| `WECHAT_APP_ID` | — | WeChat Open Platform AppID (required when WeChat enabled) |
+| `WECHAT_APP_SECRET` | — | WeChat Open Platform AppSecret (required when WeChat enabled) |
+| `WECHAT_REDIRECT_URI` | — | OAuth redirect URI registered in the WeChat Open Platform |
 
 ## Security Notes
 

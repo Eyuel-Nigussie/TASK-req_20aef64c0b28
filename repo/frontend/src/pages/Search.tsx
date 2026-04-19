@@ -125,7 +125,7 @@ export function SearchPage() {
         </label>
         <button type="submit" data-testid="search-submit">Search</button>
       </form>
-      {error ? <p className="error" data-testid="search-error">{error}</p> : null}
+      {error ? <p role="alert" className="error" data-testid="search-error">{error}</p> : null}
       <ul className="package-list" data-testid="search-results">
         {items.map((p) => (
           <li key={p.id} data-testid={`pkg-${p.code}`}>

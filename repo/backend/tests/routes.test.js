@@ -644,4 +644,108 @@ describe('orders/billing/reconciliation/reports routes', () => {
       config.wechatOAuthEnabled = false;
     }
   });
+
+  test('wechat exchange success path — live enabled+configured flow returns HTTP 200 with token', async () => {
+    const config = require('../src/config');
+    const wechatAdapter = require('../src/services/wechatAdapter');
+    // Simulate a fully configured production WeChat deployment
+    const prev = {
+      enabled: config.wechatOAuthEnabled,
+      appId: config.wechatAppId,
+      appSecret: config.wechatAppSecret,
+      redirectUri: config.wechatRedirectUri,
+    };
+    config.wechatOAuthEnabled = true;
+    config.wechatAppId = 'wx_test_appid';
+    config.wechatAppSecret = 'wx_test_secret';
+    config.wechatRedirectUri = 'https://example.com/wechat/callback';
+    const original = wechatAdapter.exchangeCode;
+    // Replace stub with a production-like implementation that returns a valid session
+    wechatAdapter.exchangeCode = async (_code) => ({
+      token: 'mock-wechat-jwt',
+      user: { id: 'wu1', username: 'wx_user', role: 'FRONT_DESK', tenantId: null },
+      nav: ['dashboard', 'orders'],
+      permissions: ['orders.view'],
+    });
+    try {
+      const res = await request(app).post('/api/auth/wechat/exchange').send({ code: 'valid-wx-code' });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBe('mock-wechat-jwt');
+      expect(res.body.user).toBeDefined();
+      expect(res.body.nav).toContain('dashboard');
+    } finally {
+      wechatAdapter.exchangeCode = original;
+      config.wechatOAuthEnabled = prev.enabled;
+      config.wechatAppId = prev.appId;
+      config.wechatAppSecret = prev.appSecret;
+      config.wechatRedirectUri = prev.redirectUri;
+    }
+  });
+
+  test('wechat/enabled reflects config flag', async () => {
+    const config = require('../src/config');
+    const prev = config.wechatOAuthEnabled;
+    config.wechatOAuthEnabled = false;
+    const off = await request(app).get('/api/auth/wechat/enabled');
+    expect(off.body.enabled).toBe(false);
+    config.wechatOAuthEnabled = true;
+    const on = await request(app).get('/api/auth/wechat/enabled');
+    expect(on.body.enabled).toBe(true);
+    config.wechatOAuthEnabled = prev;
+  });
+
+  test('orders export CSV has correct headers and row count', async () => {
+    const { tenant, manager, frontDesk } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'CBC', code: 'CEXP' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'Panel', code: 'PEXP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 75, validityDays: 90 },
+      manager
+    );
+    await request(app).post('/api/orders').set(authHeader(frontDesk)).send({ packageId: pkg.id, patient: { name: 'Alice' } });
+    await request(app).post('/api/orders').set(authHeader(frontDesk)).send({ packageId: pkg.id, patient: { name: 'Bob' } });
+    const res = await request(app).get('/api/orders/export.csv').set(authHeader(frontDesk));
+    expect(res.status).toBe(200);
+    const lines = res.text.trim().split('\n');
+    expect(lines[0]).toContain('id');
+    expect(lines[0]).toContain('patientId');
+    expect(lines[0]).toContain('status');
+    expect(lines.length).toBe(3); // header + 2 rows
+  });
+
+  test('invoices export CSV has correct headers and row count', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'CBC', code: 'CIEXP' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'Panel', code: 'PIEXP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 90, validityDays: 90 },
+      manager
+    );
+    const o1 = await request(app).post('/api/orders').set(authHeader(frontDesk)).send({ packageId: pkg.id, patient: { name: 'Carol' } });
+    const o2 = await request(app).post('/api/orders').set(authHeader(frontDesk)).send({ packageId: pkg.id, patient: { name: 'Dave' } });
+    await request(app).post(`/api/orders/${o1.body.id}/confirm`).set(authHeader(finance)).send({ taxRate: 0 });
+    await request(app).post(`/api/orders/${o2.body.id}/confirm`).set(authHeader(finance)).send({ taxRate: 0 });
+    const res = await request(app).get('/api/orders/invoices/export.csv').set(authHeader(finance));
+    expect(res.status).toBe(200);
+    const lines = res.text.trim().split('\n');
+    expect(lines[0]).toContain('id');
+    expect(lines[0]).toContain('orderId');
+    expect(lines[0]).toContain('subtotal');
+    expect(lines[0]).toContain('total');
+    expect(lines.length).toBe(3); // header + 2 rows
+  });
+
+  test('reconciliation export CSV has correct headers and row count', async () => {
+    const { tenant, finance } = await seedBaseline();
+    const content = 'amount,date,memo,counterparty\n50,2024-01-01,pay,Alice\n60,2024-01-02,fee,Bob';
+    await request(app).post('/api/reconciliation/ingest').set(authHeader(finance)).send({ filename: 'rcexp.csv', content });
+    const res = await request(app).get('/api/reconciliation/cases/export.csv').set(authHeader(finance));
+    expect(res.status).toBe(200);
+    const lines = res.text.trim().split('\n');
+    expect(lines[0]).toContain('id');
+    expect(lines[0]).toContain('fileId');
+    expect(lines[0]).toContain('transactionId');
+    expect(lines[0]).toContain('status');
+    expect(lines.length).toBe(3); // header + 2 cases
+  });
 });

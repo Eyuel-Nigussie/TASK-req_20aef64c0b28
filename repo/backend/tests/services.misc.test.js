@@ -244,6 +244,56 @@ describe('invoices service', () => {
     await expect(invoices.refund(tenant.id, inv.id, { reason: 'bad status test' }, finance))
       .rejects.toHaveProperty('code', 'BAD_STATUS');
   });
+
+  test('refund rejects missing or too-short reason with VALIDATION', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'VX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'VSP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 100, validityDays: 90 },
+      manager
+    );
+    const o = await orders.create(tenant.id, { packageId: pkg.id, patient: { name: 'D' } }, frontDesk);
+    await orders.confirm(tenant.id, o.id, [], { taxRate: 0 }, finance);
+    await orders.markPaid(tenant.id, o.id, finance);
+    const inv = (await invoices.list(tenant.id)).items[0];
+    await expect(invoices.refund(tenant.id, inv.id, { reason: '' }, finance))
+      .rejects.toHaveProperty('code', 'VALIDATION');
+    await expect(invoices.refund(tenant.id, inv.id, { reason: 'ab' }, finance))
+      .rejects.toHaveProperty('code', 'VALIDATION');
+  });
+
+  test('refund throws INVOICE_NOT_FOUND for wrong tenant', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'TX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'TSP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 100, validityDays: 90 },
+      manager
+    );
+    const o = await orders.create(tenant.id, { packageId: pkg.id, patient: { name: 'E' } }, frontDesk);
+    await orders.confirm(tenant.id, o.id, [], { taxRate: 0 }, finance);
+    await orders.markPaid(tenant.id, o.id, finance);
+    const inv = (await invoices.list(tenant.id)).items[0];
+    await expect(invoices.refund('wrong-tenant-id', inv.id, { reason: 'cross-tenant attempt' }, finance))
+      .rejects.toHaveProperty('code', 'INVOICE_NOT_FOUND');
+  });
+
+  test('list filters by status', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'FX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'FSP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 100, validityDays: 90 },
+      manager
+    );
+    const o = await orders.create(tenant.id, { packageId: pkg.id, patient: { name: 'F' } }, frontDesk);
+    await orders.confirm(tenant.id, o.id, [], { taxRate: 0 }, finance);
+    const openInvs = await invoices.list(tenant.id, { status: 'OPEN' });
+    expect(openInvs.items.length).toBe(1);
+    const paidInvs = await invoices.list(tenant.id, { status: 'PAID' });
+    expect(paidInvs.items.length).toBe(0);
+  });
 });
 
 // ─── KPI service ──────────────────────────────────────────────────────────────
@@ -283,6 +333,61 @@ describe('kpi service', () => {
     expect(result.gmv).toBe(200);
     expect(result.aov).toBe(100);
   });
+
+  test('compute date window excludes orders outside range', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'KDX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'KDP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 50, validityDays: 90 },
+      manager
+    );
+    await orders.create(tenant.id, { packageId: pkg.id, patient: { id: 'pa', name: 'A' } }, frontDesk);
+    // Window that predates all orders → 0 results
+    const past = await kpi.compute(tenant.id, { from: '2000-01-01T00:00:00Z', to: '2000-01-02T00:00:00Z' });
+    expect(past.orders).toBe(0);
+    expect(past.categoryBreakdown).toBeDefined();
+    // Future-only window also 0
+    const future = await kpi.compute(tenant.id, { from: '2099-01-01T00:00:00Z', to: '2099-12-31T00:00:00Z' });
+    expect(future.orders).toBe(0);
+  });
+
+  test('compute category filter isolates matching category', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'KCX' }, manager);
+    const { package: pkgExam } = await packages.create(
+      tenant.id,
+      { name: 'Exam', code: 'KCEX', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 80, validityDays: 90 },
+      manager
+    );
+    const { package: pkgMembership } = await packages.create(
+      tenant.id,
+      { name: 'Membership', code: 'KCHX', category: 'MEMBERSHIP', composition: [{ examItemId: item.id, required: true }], price: 60, validityDays: 90 },
+      manager
+    );
+    await orders.create(tenant.id, { packageId: pkgExam.id, patient: { id: 'pc', name: 'C' } }, frontDesk);
+    await orders.create(tenant.id, { packageId: pkgMembership.id, patient: { id: 'pd', name: 'D' } }, frontDesk);
+    const examOnly = await kpi.compute(tenant.id, { category: 'EXAM' });
+    expect(examOnly.orders).toBe(1);
+    const membershipOnly = await kpi.compute(tenant.id, { category: 'MEMBERSHIP' });
+    expect(membershipOnly.orders).toBe(1);
+    const noMatch = await kpi.compute(tenant.id, { category: 'NONEXISTENT' });
+    expect(noMatch.orders).toBe(0);
+  });
+
+  test('compute repeat purchase rate is non-zero when same patient has multiple orders', async () => {
+    const { tenant, manager, frontDesk } = await seedBaseline();
+    const item = await examItems.create(tenant.id, { name: 'X', code: 'KRX' }, manager);
+    const { package: pkg } = await packages.create(
+      tenant.id,
+      { name: 'P', code: 'KRP', category: 'EXAM', composition: [{ examItemId: item.id, required: true }], price: 40, validityDays: 90 },
+      manager
+    );
+    await orders.create(tenant.id, { packageId: pkg.id, patient: { id: 'repeat', name: 'R' } }, frontDesk);
+    await orders.create(tenant.id, { packageId: pkg.id, patient: { id: 'repeat', name: 'R' } }, frontDesk);
+    const result = await kpi.compute(tenant.id);
+    expect(result.repeatPurchaseRate).toBeGreaterThan(0);
+  });
 });
 
 // ─── Pricing service ──────────────────────────────────────────────────────────
@@ -321,6 +426,41 @@ describe('pricing service', () => {
     expect(found.code).toBe('PROMO');
     const notFound = await pricing.findActive(tenant.id, 'PROMO', new Date('2023-12-31'));
     expect(notFound).toBeNull();
+    // Unknown code returns null
+    const missing = await pricing.findActive(tenant.id, 'NO_SUCH_CODE', new Date('2024-06-01'));
+    expect(missing).toBeNull();
+  });
+
+  test('findActive respects effectiveTo — returns null after expiry', async () => {
+    const { tenant, manager } = await seedBaseline();
+    await pricing.create(tenant.id, {
+      name: 'Limited', code: 'LTD', billingType: 'AMOUNT', unitPrice: 60,
+      effectiveFrom: '2024-01-01', effectiveTo: '2024-06-30',
+    }, manager);
+    const inWindow = await pricing.findActive(tenant.id, 'LTD', new Date('2024-03-15'));
+    expect(inWindow).not.toBeNull();
+    expect(inWindow.code).toBe('LTD');
+    const afterExpiry = await pricing.findActive(tenant.id, 'LTD', new Date('2024-07-01'));
+    expect(afterExpiry).toBeNull();
+    const beforeStart = await pricing.findActive(tenant.id, 'LTD', new Date('2023-12-31'));
+    expect(beforeStart).toBeNull();
+  });
+
+  test('create validates effectiveTo must be after effectiveFrom', async () => {
+    const { tenant, manager } = await seedBaseline();
+    await expect(
+      pricing.create(tenant.id, {
+        name: 'Bad', code: 'BD', billingType: 'AMOUNT', unitPrice: 10,
+        effectiveFrom: '2024-06-01', effectiveTo: '2024-01-01',
+      }, manager)
+    ).rejects.toHaveProperty('code', 'VALIDATION');
+  });
+
+  test('create validates unitPrice must be >= 0', async () => {
+    const { tenant } = await seedBaseline();
+    await expect(
+      pricing.create(tenant.id, { name: 'P', billingType: 'AMOUNT', unitPrice: -5, effectiveFrom: '2024-01-01' })
+    ).rejects.toHaveProperty('code', 'VALIDATION');
   });
 
   test('duplicate code+version rejected with EXISTS', async () => {

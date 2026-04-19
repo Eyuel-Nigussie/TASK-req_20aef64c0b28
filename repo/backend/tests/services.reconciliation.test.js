@@ -117,6 +117,39 @@ describe('reconciliation', () => {
     expect(r.counterparty).toBe('p');
   });
 
+  test('WRITE_OFF on zero-balance (null invoiceId) case sets status to WRITTEN_OFF and does not update transaction matched state', async () => {
+    const { tenant, finance } = await seedBaseline();
+    // Amount guaranteed not to match any invoice — UNMATCHED, invoiceId=null (zero balance)
+    const content = csvFor([{ amount: 0.01, date: new Date().toISOString(), memo: 'adj', counterparty: 'BANK' }]);
+    await recon.ingestFile(tenant.id, { filename: 'wo-zero.csv', content }, finance);
+    const { items } = await recon.listCases(tenant.id, { status: 'UNMATCHED' });
+    const kase = items[0];
+    expect(kase.invoiceId).toBeNull();
+    const result = await recon.dispose(tenant.id, kase.id, { disposition: 'WRITE_OFF', note: 'zero balance adj' }, finance);
+    expect(result.disposition).toBe('WRITE_OFF');
+    expect(result.status).toBe('WRITTEN_OFF');
+    // Transaction should not be marked as matched — WRITE_OFF is a soft-delete, not a reconciliation
+    const tx = await repo.transactions.findById(kase.transactionId);
+    expect(tx.matched).toBe(false);
+  });
+
+  test('WRITE_OFF on a matched case with linked invoice sets status WRITTEN_OFF without touching transaction', async () => {
+    const { tenant, manager, frontDesk, finance } = await seedBaseline();
+    const { invoice } = await seedInvoice(tenant, frontDesk, finance, manager);
+    const content = csvFor([
+      { amount: invoice.total, date: new Date().toISOString(), memo: invoice.packageName, counterparty: invoice.patientName },
+    ]);
+    await recon.ingestFile(tenant.id, { filename: 'wo-matched.csv', content }, finance);
+    const { items } = await recon.listCases(tenant.id);
+    const matched = items.find((c) => c.status === 'MATCHED');
+    // A MATCHED case has disposition='auto' — can still be written off
+    expect(matched).toBeDefined();
+    expect(matched.disposition).toBe('auto');
+    const result = await recon.dispose(tenant.id, matched.id, { disposition: 'WRITE_OFF', note: 'dispute resolved zero balance' }, finance);
+    expect(result.status).toBe('WRITTEN_OFF');
+    expect(result.disposition).toBe('WRITE_OFF');
+  });
+
   test('SPLIT disposition requires invoiceIds array of at least 2', async () => {
     const { tenant, finance } = await seedBaseline();
     const content = csvFor([{ amount: 50, date: new Date().toISOString(), memo: 'misc', counterparty: 'x' }]);

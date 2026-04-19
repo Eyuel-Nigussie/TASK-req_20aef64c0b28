@@ -55,6 +55,36 @@ describe('tokens', () => {
     expect(await tokens.isRevoked(payload)).toBe(true);
   });
 
+  test('signForUser with no sub resolves without error', async () => {
+    const t = await tokens.signForUser({ role: 'FRONT_DESK' });
+    const p = tokens.verify(t);
+    expect(p.role).toBe('FRONT_DESK');
+    expect(p.sub).toBeUndefined();
+  });
+
+  test('isRevoked returns false for payload with no jti and no sub', async () => {
+    expect(await tokens.isRevoked({})).toBe(false);
+  });
+
+  test('isRevoked with jti only (no sub) checks jti store', async () => {
+    const p = tokens.verify(tokens.sign({ role: 'ADMIN' }));
+    expect(await tokens.isRevoked({ jti: p.jti })).toBe(false);
+    await tokens.revokeJti(p.jti);
+    expect(await tokens.isRevoked({ jti: p.jti })).toBe(true);
+  });
+
+  test('currentGeneration returns 0 for null userId', async () => {
+    expect(await tokens.currentGeneration(null)).toBe(0);
+  });
+
+  test('revokeUserTokens returns null for null userId', async () => {
+    expect(await tokens.revokeUserTokens(null)).toBeNull();
+  });
+
+  test('revokeJti returns null for null jti', async () => {
+    expect(await tokens.revokeJti(null)).toBeNull();
+  });
+
   test('blacklist revokes tokens even for existing sessions', async () => {
     const { manager, admin } = await seedBaseline();
     const token = await tokens.signForUser({ sub: manager.id, role: manager.role });

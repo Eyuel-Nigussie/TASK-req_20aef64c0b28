@@ -111,6 +111,10 @@ describe('csv', () => {
   test('parseLine quoting', () => {
     expect(parseLine('"a","b,c"')).toEqual(['a', 'b,c']);
   });
+  test('row with fewer columns than headers fills missing with empty string', () => {
+    const { rows } = parseCsv('a,b,c\n1,2');
+    expect(rows[0]).toEqual({ a: '1', b: '2', c: '' });
+  });
   test('formula-injection escape prefixes dangerous cells', () => {
     expect(escapeFormula('=SUM(A1:A2)')).toBe("'=SUM(A1:A2)");
     expect(escapeFormula('+1')).toBe("'+1");
@@ -145,6 +149,26 @@ describe('timezone', () => {
     expect(parseInZone('', 'UTC')).toBeNull();
     expect(parseInZone(null, 'UTC')).toBeNull();
   });
+  test('offsetMinutes accepts a string date and returns 0 for invalid tz', () => {
+    // String input: exercises the new Date(date) branch on line 19
+    const offset = offsetMinutes('2024-01-15T12:00:00Z', 'UTC');
+    expect(offset).toBe(0);
+    // Invalid timezone: exercises the early-return 0 on line 20
+    expect(offsetMinutes(new Date(), 'Not/Valid')).toBe(0);
+  });
+  test('parseInZone handles naive datetime string and invalid date', () => {
+    // Naive datetime (no timezone suffix) — exercises the else branch on line 57
+    const d = parseInZone('2024-03-01T00:00:00', 'UTC');
+    expect(d).toBeInstanceOf(Date);
+    expect(Number.isNaN(d.getTime())).toBe(false);
+    // Truly invalid string — exercises the null-return on line 59
+    expect(parseInZone('not-a-date', 'UTC')).toBeNull();
+  });
+  test('parseInZone passes through a Date instance unchanged', () => {
+    const src = new Date('2024-06-15T10:00:00Z');
+    const result = parseInZone(src, 'UTC');
+    expect(result.getTime()).toBe(src.getTime());
+  });
 });
 
 describe('id', () => {
@@ -166,5 +190,18 @@ describe('errors', () => {
     const err = new AppError('msg', 418, 'TEAPOT', { x: 1 });
     expect(err.status).toBe(418);
     expect(err.details).toEqual({ x: 1 });
+  });
+  test('AppError defaults status 500 and code INTERNAL_ERROR', () => {
+    const err = new AppError('oops');
+    expect(err.status).toBe(500);
+    expect(err.code).toBe('INTERNAL_ERROR');
+    expect(err.details).toBeUndefined();
+  });
+  test('tooManyRequests uses default message and code', () => {
+    const { tooManyRequests } = require('../src/utils/errors');
+    const err = tooManyRequests();
+    expect(err.status).toBe(429);
+    expect(err.code).toBe('RATE_LIMITED');
+    expect(err.message).toBe('Too Many Requests');
   });
 });

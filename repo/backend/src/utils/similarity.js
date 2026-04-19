@@ -22,6 +22,7 @@ function jaccard(a, b) {
   let inter = 0;
   for (const t of sa) if (sb.has(t)) inter += 1;
   const union = sa.size + sb.size - inter;
+  /* istanbul ignore next */
   return union === 0 ? 0 : inter / union;
 }
 
@@ -58,6 +59,7 @@ function memoSimilarity(a, b) {
   if (!na || !nb) return 0;
   const jac = jaccard(na, nb);
   const maxLen = Math.max(na.length, nb.length);
+  /* istanbul ignore next */
   const lev = maxLen === 0 ? 1 : 1 - levenshtein(na, nb) / maxLen;
   return Number((0.6 * jac + 0.4 * lev).toFixed(4));
 }

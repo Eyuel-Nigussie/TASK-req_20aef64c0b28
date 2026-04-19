@@ -37,4 +37,11 @@ describe('tenants', () => {
     expect(u).not.toHaveProperty('secret');
     await expect(tenants.updateTenant('missing', {})).rejects.toHaveProperty('code', 'TENANT_NOT_FOUND');
   });
+
+  test('update rejects invalid IANA timezone', async () => {
+    const { tenant } = await seedBaseline();
+    await expect(
+      tenants.updateTenant(tenant.id, { timezone: 'Not/A_Timezone' })
+    ).rejects.toHaveProperty('code', 'VALIDATION');
+  });
 });

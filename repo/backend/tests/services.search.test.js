@@ -82,6 +82,25 @@ describe('search', () => {
     ).rejects.toHaveProperty('code', 'INVALID_ZIP');
   });
 
+  test('TENANT_COORDS_MISSING when tenant has no coordinates and maxDistanceMiles set', async () => {
+    const repo = require('../src/repositories');
+    const tenantNoCoords = await repo.tenants.insert({ name: 'No Coords', code: 'NC99', active: true });
+    await expect(
+      search.search(tenantNoCoords.id, { patientZip: '94101', maxDistanceMiles: 10 })
+    ).rejects.toHaveProperty('code', 'TENANT_COORDS_MISSING');
+  });
+
+  test('INVALID_COORDINATES when tenant coordinates are non-finite', async () => {
+    const repo = require('../src/repositories');
+    const tenantBadCoords = await repo.tenants.insert({
+      name: 'Bad Coords', code: 'BC99', active: true,
+      coordinates: { lat: NaN, lon: NaN },
+    });
+    await expect(
+      search.search(tenantBadCoords.id, { patientZip: '94101' })
+    ).rejects.toHaveProperty('code', 'INVALID_COORDINATES');
+  });
+
   test('pagination and sort', async () => {
     const { tenant } = await seedPackages();
     const page = await search.search(tenant.id, { page: 1, pageSize: 1 });

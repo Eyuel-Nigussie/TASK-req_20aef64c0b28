@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    image: clinicops-backend:latest
+    container_name: clinicops-backend
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      # Both secrets are REQUIRED. The container will refuse to start if either
+      # is missing or set to a known-weak default value. Generate strong values
+      # before deploying:
+      #   JWT_SECRET: any high-entropy string (≥ 32 chars recommended)
+      #   CLINICOPS_AES_KEY: base64-encoded 32-byte key
+      #     openssl rand -base64 32
+      JWT_SECRET: "${JWT_SECRET}"
+      # CLINICOPS_AES_KEY must decode to exactly 32 bytes (base64).
+      CLINICOPS_AES_KEY: "${CLINICOPS_AES_KEY}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    image: clinicops-frontend:latest
+    container_name: clinicops-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      API_PROXY: "http://backend:4000"
+    depends_on:
+      - backend

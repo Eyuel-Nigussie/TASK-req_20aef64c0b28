@@ -1,0 +1,50 @@
+:root {
+  --bg: #f6f7fb;
+  --fg: #1c2340;
+  --accent: #2c5cc5;
+  --border: #d4d9e3;
+  --error: #b7202b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .75rem 1rem; background: white; border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 600; }
+.menu-toggle { display: none; }
+.app-body { display: grid; grid-template-columns: 240px 1fr; flex: 1; }
+.app-nav { background: white; border-right: 1px solid var(--border); }
+.app-nav ul { list-style: none; margin: 0; padding: .5rem; }
+.app-nav button {
+  display: block; width: 100%; text-align: left; padding: .5rem; border: 0; background: transparent;
+  border-radius: 4px; cursor: pointer;
+}
+.app-nav button.active { background: var(--accent); color: white; }
+.app-main { padding: 1rem 1.5rem; }
+.login-page { display: flex; justify-content: center; padding: 4rem 1rem; }
+.login-page form { width: 340px; background: white; padding: 1.5rem; border: 1px solid var(--border); border-radius: 8px; }
+.input-field { display: block; margin-bottom: .75rem; }
+.input-field span { display: block; font-size: .85rem; margin-bottom: 2px; }
+.input-field input { width: 100%; padding: .5rem; border: 1px solid var(--border); border-radius: 4px; }
+.error { color: var(--error); font-style: normal; }
+.kpi-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.kpi-card { background: white; padding: 1rem; border: 1px solid var(--border); border-radius: 8px; }
+.kpi-card h3 { margin: 0 0 .5rem; font-size: .9rem; color: #666; }
+.kpi-card p { margin: 0; font-size: 1.4rem; font-weight: 600; }
+.search-filters { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid var(--border); padding: .4rem; text-align: left; }
+.pagination { display: flex; gap: 1rem; align-items: center; padding: .5rem 0; }
+@media (max-width: 800px) {
+  .menu-toggle { display: inline-block; }
+  .app-body { grid-template-columns: 1fr; }
+  .app-nav { display: none; }
+  .app-body.menu-open .app-nav { display: block; }
+}

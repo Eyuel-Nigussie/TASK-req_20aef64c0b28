@@ -1,0 +1,25 @@
+'use strict';
+
+module.exports = {
+  '94101': { lat: 37.7749, lon: -122.4194, city: 'San Francisco', state: 'CA' },
+  '94102': { lat: 37.7793, lon: -122.4193, city: 'San Francisco', state: 'CA' },
+  '94110': { lat: 37.7506, lon: -122.4148, city: 'San Francisco', state: 'CA' },
+  '94301': { lat: 37.4419, lon: -122.143, city: 'Palo Alto', state: 'CA' },
+  '95014': { lat: 37.3185, lon: -122.0303, city: 'Cupertino', state: 'CA' },
+  '10001': { lat: 40.7506, lon: -73.9972, city: 'New York', state: 'NY' },
+  '10011': { lat: 40.7421, lon: -74.0018, city: 'New York', state: 'NY' },
+  '10022': { lat: 40.7585, lon: -73.9663, city: 'New York', state: 'NY' },
+  '60601': { lat: 41.8858, lon: -87.6181, city: 'Chicago', state: 'IL' },
+  '60611': { lat: 41.8918, lon: -87.6231, city: 'Chicago', state: 'IL' },
+  '98101': { lat: 47.6112, lon: -122.3347, city: 'Seattle', state: 'WA' },
+  '98109': { lat: 47.6308, lon: -122.3481, city: 'Seattle', state: 'WA' },
+  '02108': { lat: 42.3581, lon: -71.0636, city: 'Boston', state: 'MA' },
+  '02116': { lat: 42.3493, lon: -71.0757, city: 'Boston', state: 'MA' },
+  '30301': { lat: 33.7527, lon: -84.3914, city: 'Atlanta', state: 'GA' },
+  '77001': { lat: 29.7752, lon: -95.3498, city: 'Houston', state: 'TX' },
+  '78701': { lat: 30.2672, lon: -97.7431, city: 'Austin', state: 'TX' },
+  '85001': { lat: 33.4484, lon: -112.074, city: 'Phoenix', state: 'AZ' },
+  '33101': { lat: 25.7617, lon: -80.1918, city: 'Miami', state: 'FL' },
+  '90001': { lat: 33.9731, lon: -118.2479, city: 'Los Angeles', state: 'CA' },
+  '90210': { lat: 34.0901, lon: -118.4065, city: 'Beverly Hills', state: 'CA' },
+};
